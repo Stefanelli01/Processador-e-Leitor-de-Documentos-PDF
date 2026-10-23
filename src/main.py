@@ -75,7 +75,6 @@ def processar_pdf(caminho_pdf):
     conn.commit()
     conn.close()
 
-    print("Sucesso, index no SQL")
     print(f"Processo: {num_processo}")
     print(f"Data: {data_encontrada}")
     print(f"Total_pag: {total_paginas}")
