@@ -3,7 +3,7 @@
 Ferramenta desenvolvida em Python para leitura, extração de metadados e indexação de arquivos PDF administrativos e licitatórios.
 
 A aplicação utiliza a biblioteca PyMuPDF para extração do texto bruto, aplica padrões de Expressões Regulares (Regex) para identificar automaticamente dados estruturados (como números de processo e datas) e armazena os resultados em um banco de dados local SQLite.
-
+Juntamente com a bilbioteca de interface CustomTkinter, para um visual de qualidade.
 
 ## Funcionalidades
 
@@ -17,5 +17,6 @@ A aplicação utiliza a biblioteca PyMuPDF para extração do texto bruto, aplic
 
 - Linguagem: Python 3.10+
 - Leitura de PDF: PyMuPDF (fitz)
+- Interface: CustomTkinter v5.0.0+
 - Extração de Padrões: Módulo nativo `re` (Regex)
 - Banco de Dados: SQLite3
