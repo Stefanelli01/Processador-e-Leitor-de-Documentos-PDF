@@ -1,17 +1,15 @@
 import customtkinter as ctk
 from pathlib import Path
-from tkinter import filedialog
-import time
-import threading
+from tkinter import filedialog, messagebox
+
+from src.main import init_db, processar_pdf, pesquisar_documentos, obter_resumo
+
 
 arquivo_atual = Path(__file__).resolve()
 pasta_raiz = arquivo_atual.parents[2]
-
-caminho_subpasta = pasta_raiz / "assets/themes"
-arquivo_alvo = caminho_subpasta / "theme.json"
+arquivo_alvo = pasta_raiz / "assets/themes/theme.json"
 
 ctk.set_appearance_mode("System")
-
 if arquivo_alvo.exists():
     ctk.set_default_color_theme(str(arquivo_alvo))
 else:
@@ -21,12 +19,14 @@ else:
 class App(ctk.CTk):
 
     def mostrar_inicio(self):
+        self.atualizar_inicial()
         self.mudar_tela(self.tela_inicio)
 
     def mostrar_processar(self):
         self.mudar_tela(self.tela_process)
 
     def mostrar_pesquisar(self):
+        self.filtrar_resultados()
         self.mudar_tela(self.tela_pesq)
 
     def selecionar_arquivo(self):
@@ -37,45 +37,6 @@ class App(ctk.CTk):
         if caminho:
             self.entry_caminho.delete(0, "end")
             self.entry_caminho.insert(0, caminho)
-
-    def iniciar_processamento(self):
-        caminho = self.entry_caminho.get().strip()
-
-        if not caminho or caminho == "Nenhum arquivo selecionado...":
-            self.lbl_mensagem_status.configure(
-                text="Erro: Nenhum arquivo foi selecionado!",
-                text_color="#ff4757"
-            )
-            return
-
-        self.lbl_mensagem_status.configure(
-            text="Processando arquivo, aguarde...",
-            text_color="gray"
-        )
-        self.lbl_processo.configure(text="N° de processo: -")
-        self.lbl_data.configure(text="Data encontrada: -")
-        self.lbl_pag.configure(text="Total de páginas: -")
-
-        self.btn_enviar.configure(state="disabled")
-        threading.Thread(target=self.simular_processamento_pdf, daemon=True).start()
-
-    def simular_processamento_pdf(self):
-        try:
-            time.sleep(2)
-            self.lbl_mensagem_status.configure(
-                text="Task finalizada!",
-                text_color="#2ed573"
-            )
-            self.lbl_processo.configure(text="N° de processo: 2026.008492-1")
-            self.lbl_data.configure(text="Data encontrada: 23/10/2026")
-            self.lbl_pag.configure(text="Total de páginas: 14")
-        except Exception as e:
-            self.lbl_mensagem_status.configure(
-                text=f"Erro ao processar: {str(e)}",
-                text_color="#ff4757"
-            )
-        finally:
-            self.btn_enviar.configure(state="normal")
 
     def carregar_tabela_pesquisa(self, dados):
         for widget in self.frame_tabela_pesq.winfo_children():
@@ -95,14 +56,10 @@ class App(ctk.CTk):
             processo, ficheiro, data, status = row_data
             cor_status = "#2ed573" if status == "Concluído" else ("#ff4757" if status == "Erro" else "#ffbe76")
 
-            ctk.CTkLabel(self.frame_tabela_pesq, text=processo, text_color="gray80").grid(row=row_idx, column=0,
-                                                                                          padx=10, pady=6, sticky="w")
-            ctk.CTkLabel(self.frame_tabela_pesq, text=ficheiro, text_color="gray80").grid(row=row_idx, column=1,
-                                                                                          padx=10, pady=6, sticky="w")
-            ctk.CTkLabel(self.frame_tabela_pesq, text=data, text_color="gray80").grid(row=row_idx, column=2, padx=10,
-                                                                                      pady=6, sticky="w")
-            ctk.CTkLabel(self.frame_tabela_pesq, text=status, text_color=cor_status).grid(row=row_idx, column=3,
-                                                                                          padx=10, pady=6, sticky="w")
+            ctk.CTkLabel(self.frame_tabela_pesq, text=processo, text_color="gray80").grid(row=row_idx, column=0, padx=10, pady=6, sticky="w")
+            ctk.CTkLabel(self.frame_tabela_pesq, text=ficheiro, text_color="gray80").grid(row=row_idx, column=1, padx=10, pady=6, sticky="w")
+            ctk.CTkLabel(self.frame_tabela_pesq, text=data, text_color="gray80").grid(row=row_idx, column=2, padx=10, pady=6, sticky="w")
+            ctk.CTkLabel(self.frame_tabela_pesq, text=status, text_color=cor_status).grid(row=row_idx, column=3, padx=10, pady=6, sticky="w")
 
             btn_ver = ctk.CTkButton(
                 self.frame_tabela_pesq,
@@ -111,31 +68,63 @@ class App(ctk.CTk):
                 height=26,
                 fg_color="gray30",
                 hover_color="gray20",
-                command=lambda p=processo: print(f"A abrir processo: {p}")
+                command=lambda p=processo: messagebox.showinfo("Detalhes", f"Processo: {p}")
             )
             btn_ver.grid(row=row_idx, column=4, padx=10, pady=6, sticky="w")
 
+    def iniciar_processamento(self):
+        caminho = self.entry_caminho.get().strip()
+        if not caminho:
+            messagebox.showwarning("Aviso", "Selecione um arquivo PDF primeiro.")
+            return
+
+        self.lbl_mensagem_status.configure(text="Processando arquivo...", text_color="#ffbe76")
+        self.update_idletasks()
+
+        res = processar_pdf(caminho)
+
+        if res.get("sucesso"):
+            self.lbl_mensagem_status.configure(text="Sucesso!", text_color="#2ed573")
+            self.lbl_processo.configure(text=f"N° de processo: {res['processo']}")
+            self.lbl_data.configure(text=f"Data encontrada: {res['data']}")
+            self.lbl_pag.configure(text=f"Total de páginas: {res['total_paginas']}")
+            self.atualizar_inicial()
+        else:
+            self.lbl_mensagem_status.configure(text=f"Erro: {res.get('erro', 'Falha ao processar')}", text_color="#ff4757")
+
     def filtrar_resultados(self):
         termo = self.entry_busca.get().lower().strip()
-        status_sel = self.filtro_status.get()
-
-        resultados = []
-        for item in self.dados_base:
-            processo, ficheiro, data, status = item
-
-            corresponde_texto = (termo in processo.lower()) or (termo in ficheiro.lower())
-            corresponde_status = (status_sel == "Todos os Status") or (status == status_sel)
-
-            if corresponde_texto and corresponde_status:
-                resultados.append(item)
-
+        resultados = pesquisar_documentos(termo)
         self.carregar_tabela_pesquisa(resultados)
+
+    def atualizar_inicial(self):
+        total, consultas_hoje, recentes = obter_resumo()
+        self.lbl_total_val.configure(text=str(total))
+        self.lbl_hoje_val.configure(text=str(consultas_hoje))
+
+        for widget in self.table_frame.winfo_children():
+            if int(widget.grid_info()["row"]) > 0:
+                widget.destroy()
+
+        for row_idx, row_data in enumerate(recentes, start=1):
+            for col_idx, value in enumerate(row_data):
+                cor_status = "#2ed573" if value == "Concluído" else "gray80"
+                lbl = ctk.CTkLabel(
+                    self.table_frame,
+                    text=str(value),
+                    text_color=cor_status if col_idx == 3 else "gray80"
+                )
+                lbl.grid(row=row_idx, column=col_idx, padx=15, pady=6, sticky="w")
 
     def __init__(self):
         super().__init__()
 
+        init_db()
+
         self.title("Interface")
         self.geometry("1360x700")
+
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -173,69 +162,47 @@ class App(ctk.CTk):
         )
         self.lbl_title.pack(anchor="w", pady=(0, 2))
 
-        self.lbl_title = ctk.CTkLabel(
+        self.lbl_title_sub = ctk.CTkLabel(
             self.tela_inicio,
             text="O que faremos hoje?",
             font=ctk.CTkFont("Helvetica", size=18, weight="bold"),
             text_color="#ebc075"
         )
-        self.lbl_title.pack(anchor="w", pady=(0, 2))
+        self.lbl_title_sub.pack(anchor="w", pady=(0, 2))
 
         self.cards_frame = ctk.CTkFrame(self.tela_inicio, fg_color="transparent")
         self.cards_frame.pack(fill="x", pady=10)
 
         self.card1 = ctk.CTkFrame(self.cards_frame)
         self.card1.pack(side="left", expand=True, fill="both", padx=(0, 10))
-        ctk.CTkLabel(self.card1, text="Total Processado", font=ctk.CTkFont(size=12), text_color="gray").pack(
-            pady=(10, 0))
-        ctk.CTkLabel(self.card1, text="1,248", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(0, 10))
+        ctk.CTkLabel(self.card1, text="Total Processado", font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(10, 0))
+        self.lbl_total_val = ctk.CTkLabel(self.card1, text="0", font=ctk.CTkFont(size=22, weight="bold"))
+        self.lbl_total_val.pack(pady=(0, 10))
 
         self.card2 = ctk.CTkFrame(self.cards_frame)
         self.card2.pack(side="left", expand=True, fill="both", padx=5)
         ctk.CTkLabel(self.card2, text="Consultas Hoje", font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(10, 0))
-        ctk.CTkLabel(self.card2, text="42", font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(0, 10))
+        self.lbl_hoje_val = ctk.CTkLabel(self.card2, text="0", font=ctk.CTkFont(size=22, weight="bold"))
+        self.lbl_hoje_val.pack(pady=(0, 10))
 
         self.card3 = ctk.CTkFrame(self.cards_frame)
         self.card3.pack(side="left", expand=True, fill="both", padx=(10, 0))
-        ctk.CTkLabel(self.card3, text="Status do Banco", font=ctk.CTkFont(size=12), text_color="gray").pack(
-            pady=(10, 0))
-        ctk.CTkLabel(self.card3, text="● Conectado", font=ctk.CTkFont(size=16, weight="bold"),
-                     text_color="#2ed573").pack(pady=(5, 10))
+        ctk.CTkLabel(self.card3, text="Status do Banco", font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(10, 0))
+        ctk.CTkLabel(self.card3, text="● Conectado", font=ctk.CTkFont(size=16, weight="bold"), text_color="#2ed573").pack(pady=(5, 10))
 
-        table_frame = ctk.CTkFrame(self.tela_inicio)
-        table_frame.pack(fill="both", expand=True, pady=(0, 10))
+        self.table_frame = ctk.CTkFrame(self.tela_inicio)
+        self.table_frame.pack(fill="both", expand=True, pady=(0, 10))
+        self.table_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
-        table_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
-
-        headers = ["ID", "Operação", "Data / Hora", "Status"]
+        headers = ["ID", "Processo", "Data / Hora", "Status"]
         for col_idx, text_header in enumerate(headers):
             lbl = ctk.CTkLabel(
-                table_frame,
+                self.table_frame,
                 text=text_header,
                 font=ctk.CTkFont(size=12, weight="bold"),
                 text_color="#ebc075"
             )
             lbl.grid(row=0, column=col_idx, padx=15, pady=10, sticky="w")
-
-        dados_exemplo = [
-            ("001", "Con1", "23/10/2026 14:20", "Concluído"),
-            ("002", "Con2", "23/10/2026 15:05", "Concluído"),
-            ("003", "Con3", "23/10/2026 16:10", "Pendente"),
-        ]
-
-        for row_idx, row_data in enumerate(dados_exemplo, start=1):
-            for col_idx, value in enumerate(row_data):
-                cor_status = "#2ed573" if value == "Concluído" else ("#ffbe76" if value == "Pendente" else "gray80")
-                lbl = ctk.CTkLabel(
-                    table_frame,
-                    text=value,
-                    text_color=cor_status if col_idx == 3 else "gray80"
-                )
-                lbl.grid(row=row_idx, column=col_idx, padx=15, pady=6, sticky="w")
-
-
-
-
 
         # Tela processar
         self.tela_process = ctk.CTkFrame(self, fg_color="transparent")
@@ -288,39 +255,26 @@ class App(ctk.CTk):
         )
         self.lbl_mensagem_status.pack(pady=(0, 20))
 
-        # Variáveis a serem subs
-        n_processo = 1111
-        valor_data = "1-1-1"
-        total_pag = 120
-        
-        if n_processo :
-            self.lbl_processo = ctk.CTkLabel(
-                self.tela_process,
-                text=f"N° de processo: {n_processo}",
-                font=ctk.CTkFont("Helvetica", size=18, weight="bold")
-            )
-            self.lbl_processo.pack(anchor="w", pady=(20, 0))
+        self.lbl_processo = ctk.CTkLabel(
+            self.tela_process,
+            text="",
+            font=ctk.CTkFont("Helvetica", size=18, weight="bold")
+        )
+        self.lbl_processo.pack(anchor="w", pady=(20, 0))
 
-        if valor_data:
-            self.lbl_data = ctk.CTkLabel(
-                self.tela_process,
-                text=f"Data encontrada: {valor_data}",
-                font=ctk.CTkFont("Helvetica", size=18, weight="bold")
-            )
-            self.lbl_data.pack(anchor="w", pady=(10, 0))
+        self.lbl_data = ctk.CTkLabel(
+            self.tela_process,
+            text="",
+            font=ctk.CTkFont("Helvetica", size=18, weight="bold")
+        )
+        self.lbl_data.pack(anchor="w", pady=(10, 0))
 
-        if total_pag:
-            self.lbl_pag = ctk.CTkLabel(
-                self.tela_process,
-                text=f"Total de páginas: {total_pag}",
-                font=ctk.CTkFont("Helvetica", size=18, weight="bold")
-            )
-            self.lbl_pag.pack(anchor="w", pady=(10, 0))
-
-
-
-
-
+        self.lbl_pag = ctk.CTkLabel(
+            self.tela_process,
+            text="",
+            font=ctk.CTkFont("Helvetica", size=18, weight="bold")
+        )
+        self.lbl_pag.pack(anchor="w", pady=(10, 0))
 
         # Tela pesquisar
         self.tela_pesq = ctk.CTkFrame(self, fg_color="transparent")
@@ -370,28 +324,18 @@ class App(ctk.CTk):
         self.frame_tabela_pesq.pack(fill="both", expand=True, pady=5)
         self.frame_tabela_pesq.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
 
-
-        ## APENAS PARA TESTE
-        self.dados_base = [
-            ("2026.008492-1", "Contrato1.pdf", "23/10/2026", "Con"),
-            ("2026.009110-4", "Contrato2", "22/10/2026", "Con"),
-            ("2026.001239-0", "Contrato3.pdf", "21/10/2026", "Pndt"),
-            ("2026.004551-8", "Contrato4.pdf", "20/10/2026", "Erro"),
-        ]
-
-        self.carregar_tabela_pesquisa(self.dados_base)
-
-
-
-
     def mudar_tela(self, nova_tela):
-
         if self.tela_atual is not None:
             self.tela_atual.grid_forget()
 
         self.tela_atual = nova_tela
         self.tela_atual.grid(row=0, column=1, sticky="nsew", padx=20, pady=20)
 
+
+    def on_closing(self):
+        self.withdraw()
+        self.destroy()
+        self.quit()
 
 if __name__ == "__main__":
     app = App()
