@@ -300,7 +300,7 @@ class App(ctk.CTk):
 
         self.filtro_status = ctk.CTkOptionMenu(
             self.frame_filtros,
-            values=["Todos", "Con", "Pndt", "Erro"],
+            values=["Todos", "Concluído", "Pendente", "Erro"],
             width=180,
             height=40,
             fg_color="gray30",
