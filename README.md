@@ -12,6 +12,17 @@ Juntamente com a bilbioteca de interface CustomTkinter, para um visual de qualid
 - Persistência dos metadados e do texto extraído em banco de dados SQLite local.
 - Interface de linha de comando (CLI) interativa para processamento de novos arquivos e busca textual por palavras-chave ou números de processo.
 
+## Prints
+
+### Primeira página / Inicio
+![Inicio](utils/screenshots/Inicio.png)
+
+### Processamento
+![Inicio](utils/screenshots/Processamento.png)
+
+### Busca / pesquisa
+![Inicio](utils/screenshots/Busca.png)
+
 
 ## Tecnologias Utilizadas
 

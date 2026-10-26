@@ -121,7 +121,7 @@ class App(ctk.CTk):
 
         init_db()
 
-        self.title("Interface")
+        self.title("Processador de PDFs")
         self.geometry("1360x700")
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
